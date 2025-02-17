@@ -4,9 +4,10 @@ from pygments import highlight
 from pygments.formatters import HtmlFormatter
 from pygments.lexers import get_lexer_by_name
 from flask_cors import CORS
+import os  # Added to access environment variables
 
 # Configure the Google Generative AI API key
-genai.configure(api_key='AIzaSyChNg304VxhLoWXunDJr19ms5WL7j0DY5w')  # Replace with your actual API key
+genai.configure(api_key=os.getenv('GENAI_API_KEY'))  # Use environment variable for API key
 
 app = Flask(__name__)
 CORS(app)
@@ -19,111 +20,6 @@ TEMPLATE_CONTENT = '''<!DOCTYPE html>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Code Review</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/monokai.min.css" rel="stylesheet">
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Arial', sans-serif;
-        }
-
-        body {
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            background-color: #1e1e2f;
-            color: #ffffff;
-            padding: 20px;
-        }
-
-        .container {
-            width: 100%;
-            max-width: 800px;
-            background-color: #2a2a3c;
-            padding: 30px;
-            border-radius: 12px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-        }
-
-        h1 {
-            text-align: center;
-            margin-bottom: 20px;
-            font-size: 2.5rem;
-            color: #007BFF;
-        }
-
-        .code-input, .review-output {
-            margin-bottom: 20px;
-        }
-
-        textarea {
-            width: 100%;
-            height: 250px;
-            padding: 10px;
-            font-size: 16px;
-            font-family: monospace;
-            border: none;
-            border-radius: 8px;
-            background-color: #1e1e2f;
-            color: #ffffff;
-            resize: none;
-            outline: none;
-        }
-
-        select, button {
-            padding: 10px 15px;
-            margin: 10px 0;
-            font-size: 16px;
-            border-radius: 8px;
-            border: none;
-            outline: none;
-            cursor: pointer;
-        }
-
-        select {
-            background-color: #2a2a3c;
-            color: #ffffff;
-        }
-
-        button {
-            background-color: #007BFF;
-            color: #fff;
-            transition: background-color 0.3s;
-        }
-
-        button:hover {
-            background-color: #0056b3;
-        }
-
-        .loading {
-            display: none;
-            text-align: center;
-            font-size: 18px;
-            color: #007BFF;
-        }
-
-        .highlighted-code, .review-result {
-            margin-top: 20px;
-            padding: 20px;
-            border-radius: 8px;
-            background-color: #1e1e2f;
-            color: #ffffff;
-            overflow-x: auto;
-            font-size: 14px;
-        }
-
-        .highlighted-code pre, .review-result pre {
-            white-space: pre-wrap;
-            word-wrap: break-word;
-        }
-
-        @media (max-width: 768px) {
-            .container {
-                padding: 15px;
-            }
-        }
-    </style>
 </head>
 <body>
     <div class="container">
@@ -212,9 +108,6 @@ def analyze_code(code, language):
         return f"Error analyzing code: {str(e)}"
 
 def highlight_code(code, language):
-    """
-    Syntax highlight code for web display
-    """
     try:
         lexer = get_lexer_by_name(language.lower())
         formatter = HtmlFormatter(style='monokai')
@@ -240,7 +133,5 @@ def review():
         'highlighted_code': highlighted_code
     })
 
-
 if __name__ == "__main__":
-    app.run(debug=True)
-
+    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 5000)))  # Updated to listen on Render's dynamic port
