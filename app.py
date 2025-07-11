@@ -175,7 +175,7 @@ TEMPLATE_CONTENT = '''<!DOCTYPE html>
 </html>
 '''
 
-model = genai.GenerativeModel('gemini-pro')
+model = genai.GenerativeModel(model_name='models/gemini-1.5-pro-latest')
 
 def analyze_code(code, language):
     if not code.strip():
