@@ -1,16 +1,25 @@
+import os
 from flask import Flask, render_template_string, request, jsonify
-import google.generativeai as genai
+from flask_cors import CORS
 from pygments import highlight
 from pygments.formatters import HtmlFormatter
 from pygments.lexers import get_lexer_by_name
-from flask_cors import CORS
-import os  # Added to access environment variables
 
-# Configure the Google Generative AI API key
-genai.configure(api_key=os.getenv('GENAI_API_KEY'))  # Use environment variable for API key
+from google import genai
+
+# Load API key from environment variable
+GENAI_API_KEY = os.getenv('GENAI_API_KEY')
+if not GENAI_API_KEY:
+    raise RuntimeError("GENAI_API_KEY environment variable not set")
+
+# Initialize Gemini client
+client = genai.Client(api_key=GENAI_API_KEY)
 
 app = Flask(__name__)
 CORS(app)
+
+# Generate Pygments CSS for code highlighting
+pygments_css = HtmlFormatter(style='monokai').get_style_defs('.highlighted-code')
 
 # HTML Template as a string
 TEMPLATE_CONTENT = '''<!DOCTYPE html>
@@ -19,98 +28,22 @@ TEMPLATE_CONTENT = '''<!DOCTYPE html>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Code Review</title>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/monokai.min.css" rel="stylesheet">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Arial', sans-serif;
-        }
-        body {
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            background-color: #1e1e2f;
-            color: #ffffff;
-            padding: 20px;
-        }
-        .container {
-            width: 100%;
-            max-width: 800px;
-            background-color: #2a2a3c;
-            padding: 30px;
-            border-radius: 12px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-        }
-        h1 {
-            text-align: center;
-            margin-bottom: 20px;
-            font-size: 2.5rem;
-            color: #007BFF;
-        }
-        .code-input, .review-output {
-            margin-bottom: 20px;
-        }
-        textarea {
-            width: 100%;
-            height: 250px;
-            padding: 10px;
-            font-size: 16px;
-            font-family: monospace;
-            border: none;
-            border-radius: 8px;
-            background-color: #1e1e2f;
-            color: #ffffff;
-            resize: none;
-            outline: none;
-        }
-        select, button {
-            padding: 10px 15px;
-            margin: 10px 0;
-            font-size: 16px;
-            border-radius: 8px;
-            border: none;
-            outline: none;
-            cursor: pointer;
-        }
-        select {
-            background-color: #2a2a3c;
-            color: #ffffff;
-        }
-        button {
-            background-color: #007BFF;
-            color: #fff;
-            transition: background-color 0.3s;
-        }
-        button:hover {
-            background-color: #0056b3;
-        }
-        .loading {
-            display: none;
-            text-align: center;
-            font-size: 18px;
-            color: #007BFF;
-        }
-        .highlighted-code, .review-result {
-            margin-top: 20px;
-            padding: 20px;
-            border-radius: 8px;
-            background-color: #1e1e2f;
-            color: #ffffff;
-            overflow-x: auto;
-            font-size: 14px;
-        }
-        .highlighted-code pre, .review-result pre {
-            white-space: pre-wrap;
-            word-wrap: break-word;
-        }
-        @media (max-width: 768px) {
-            .container {
-                padding: 15px;
-            }
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Arial', sans-serif; }
+        body { min-height: 100vh; display: flex; justify-content: center; align-items: center; background-color: #1e1e2f; color: #ffffff; padding: 20px; }
+        .container { width: 100%; max-width: 800px; background-color: #2a2a3c; padding: 30px; border-radius: 12px; box-shadow: 0 4px 8px rgba(0,0,0,0.2); }
+        h1 { text-align: center; margin-bottom: 20px; font-size: 2.5rem; color: #007BFF; }
+        .code-input, .review-output { margin-bottom: 20px; }
+        textarea { width: 100%; height: 250px; padding: 10px; font-size: 16px; font-family: monospace; border: none; border-radius: 8px; background-color: #1e1e2f; color: #ffffff; resize: none; outline: none; }
+        select, button { padding: 10px 15px; margin: 10px 0; font-size: 16px; border-radius: 8px; border: none; outline: none; cursor: pointer; }
+        select { background-color: #2a2a3c; color: #ffffff; }
+        button { background-color: #007BFF; color: #fff; transition: background-color 0.3s; }
+        button:hover { background-color: #0056b3; }
+        .loading { display: none; text-align: center; font-size: 18px; color: #007BFF; }
+        .highlighted-code, .review-result { margin-top: 20px; padding: 20px; border-radius: 8px; background-color: #1e1e2f; color: #ffffff; overflow-x: auto; font-size: 14px; }
+        .highlighted-code pre, .review-result pre { white-space: pre-wrap; word-wrap: break-word; }
+        @media (max-width: 768px) { .container { padding: 15px; } }
+        {{ pygments_css }}
     </style>
 </head>
 <body>
@@ -134,7 +67,6 @@ TEMPLATE_CONTENT = '''<!DOCTYPE html>
             <div id="review-result" class="review-result"></div>
         </div>
     </div>
-
     <script>
         async function submitCode() {
             const code = document.getElementById('code').value;
@@ -155,9 +87,7 @@ TEMPLATE_CONTENT = '''<!DOCTYPE html>
             try {
                 const response = await fetch('/review', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ code, language }),
                 });
 
@@ -175,26 +105,24 @@ TEMPLATE_CONTENT = '''<!DOCTYPE html>
 </html>
 '''
 
-model = genai.GenerativeModel(model_name='models/gemini-1.5-pro-latest')
-
 def analyze_code(code, language):
     if not code.strip():
         return "Error: Empty code submitted"
 
-    prompt = f"""
-    As an expert code reviewer, analyze this {language} code:
-
-    {code}
-
-    Provide a detailed review including:
-    1. Identify any errors (syntax, logical, or runtime)
-    2. If there are errors, provide the corrected code
-
-    Format the response in a structured way.
-    """
+    prompt = (
+        f"As an expert code reviewer, analyze this {language} code:\n\n"
+        f"{code}\n\n"
+        "Provide a detailed review including:\n"
+        "1. Identify any errors (syntax, logical, or runtime)\n"
+        "2. If there are errors, provide the corrected code\n\n"
+        "Format the response in a structured way."
+    )
 
     try:
-        response = model.generate_content(prompt)
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt
+        )
         return response.text
     except Exception as e:
         return f"Error analyzing code: {str(e)}"
@@ -209,7 +137,7 @@ def highlight_code(code, language):
 
 @app.route('/')
 def index():
-    return render_template_string(TEMPLATE_CONTENT)
+    return render_template_string(TEMPLATE_CONTENT, pygments_css=pygments_css)
 
 @app.route('/review', methods=['POST'])
 def review():
@@ -226,4 +154,4 @@ def review():
     })
 
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 5000)))  # Updated to listen on Render's dynamic port
+    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 5000)))
