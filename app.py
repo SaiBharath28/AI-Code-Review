@@ -8,7 +8,7 @@ from pygments.lexers import get_lexer_by_name
 from google import genai
 
 # Load API key from environment variable
-GENAI_API_KEY = os.getenv('AIzaSyCBZ8WHMduv5hQpxMO7ocv03CaFHw77_rE')
+GENAI_API_KEY = os.getenv('GENAI_API_KEY')
 if not GENAI_API_KEY:
     raise RuntimeError("GENAI_API_KEY environment variable not set")
 
